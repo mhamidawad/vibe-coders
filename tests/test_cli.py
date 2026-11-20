@@ -4,10 +4,12 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
-from vibe_coders.cli import main, run_goal, _agent_for, _file_owns_for
+from vibe_coders.cli import main, run_goal, run_rag_integration, _agent_for, _file_owns_for
 from vibe_coders.agents.implementation import ImplementationAgent
 from vibe_coders.agents.test_agent import TestAgent
 from vibe_coders.agents.review_agent import ReviewAgent
+from vibe_coders.agents.rag_research import RAGResearchAgent
+from vibe_coders.agents.rag_verifier import RAGVerifierAgent
 
 
 class CLIAgentMappingTests(unittest.TestCase):
@@ -85,3 +87,30 @@ class RunGoalTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(report["max_active_agents"], 1)
         self.assertEqual(report["max_impl_concurrent"], 1)
+
+
+class CLIRAGAgentMappingTests(unittest.TestCase):
+    def test_agent_for_rag_roles(self):
+        self.assertIsInstance(_agent_for("rag-research", "rag-res-1"), RAGResearchAgent)
+        self.assertIsInstance(_agent_for("rag-verifier", "rag-ver-1"), RAGVerifierAgent)
+
+    def test_file_owns_for_rag_roles(self):
+        self.assertEqual(_file_owns_for("rag-research", {}), [])
+        self.assertEqual(_file_owns_for("rag-verifier", {}), [])
+
+
+class CLIRAGIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_run_rag_integration_structure(self):
+        report = await run_rag_integration(
+            rag_repo="/workspace/rag-team",
+            max_active=3,
+            max_impl=2,
+            verbose=False,
+        )
+        self.assertEqual(report["mode"], "rag_integration")
+        self.assertEqual(report["rag_repo"], "/workspace/rag-team")
+        self.assertIn("research", report)
+        self.assertIn("verification", report)
+        self.assertIn("supervisor_report", report)
+        self.assertIn("all_passed", report)
+

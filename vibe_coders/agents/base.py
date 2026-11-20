@@ -33,6 +33,8 @@ ROLES = (
     "debugger",
     "security",
     "documentation",
+    "rag-research",
+    "rag-verifier",
 )
 
 # Roles whose agents produce code / file edits. Concurrency for these is

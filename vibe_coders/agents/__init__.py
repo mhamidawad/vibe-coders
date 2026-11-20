@@ -1,7 +1,8 @@
 """Agent subpackage.
 
 Specialist agent implementations: research, implementation, test, review, fix,
-planner, architecture, debugger, security, documentation.
+planner, architecture, debugger, security, documentation, rag-research,
+rag-verifier.
 
 All are passive — they receive a context dict and return a result dict with
 status, confidence, evidence, findings, and recommendations. The Supervisor
@@ -23,10 +24,12 @@ from .documentation import DocumentationAgent
 from .fix_agent import FixAgent
 from .implementation import ImplementationAgent
 from .planner import PlannerAgent
+from .rag_research import RAGResearchAgent
+from .rag_verifier import RAGVerifierAgent
+from .research import ResearchAgent
 from .review_agent import ReviewAgent
 from .security import SecurityAgent
 from .test_agent import TestAgent
-from .research import ResearchAgent
 
 __all__ = [
     "AgentProfile",
@@ -46,4 +49,6 @@ __all__ = [
     "DebuggerAgent",
     "SecurityAgent",
     "DocumentationAgent",
+    "RAGResearchAgent",
+    "RAGVerifierAgent",
 ]

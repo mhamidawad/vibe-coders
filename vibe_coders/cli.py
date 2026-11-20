@@ -25,6 +25,8 @@ from .agents import (
     FixAgent,
     ImplementationAgent,
     PlannerAgent,
+    RAGResearchAgent,
+    RAGVerifierAgent,
     ResearchAgent,
     ReviewAgent,
     SecurityAgent,
@@ -45,6 +47,8 @@ AGENT_CLASSES = {
     "debugger": (DebuggerAgent, "dbg"),
     "security": (SecurityAgent, "sec"),
     "documentation": (DocumentationAgent, "doc"),
+    "rag-research": (RAGResearchAgent, "rag-res"),
+    "rag-verifier": (RAGVerifierAgent, "rag-ver"),
 }
 
 # File-ownership hints per role for tasks created from a plan.
@@ -52,6 +56,8 @@ ROLE_FILE_HINTS = {
     "implementation": ["vibe_coders/module.py"],
     "fix": ["tests/test_module.py"],
     "documentation": ["docs/module.md"],
+    "rag-research": [],
+    "rag-verifier": [],
 }
 
 
@@ -93,6 +99,56 @@ def _default_content(role: str, title: str) -> str:
             f"        self.assertTrue(True)\n"
         )
     return f"# {title}\n"
+
+
+async def run_rag_integration(
+    rag_repo: str,
+    max_active: int = 3,
+    max_impl: int = 2,
+    verbose: bool = False,
+) -> dict:
+    """Run read-only RAG remediation research and verification.
+
+    Delegates to a rag-research agent (inspects the codebase) and a
+    rag-verifier agent (runs unit tests + hallucination suite) concurrently.
+    Returns a combined report.
+    """
+    sup = AsyncSupervisor(
+        Registry(max_active_agents=max_active, max_impl_concurrent=max_impl)
+    )
+
+    # 1. RAG research — inspect the codebase.
+    researcher = RAGResearchAgent("rag-res-1")
+    t_research = sup.new_task("research RAG remediation", "rag-research", file_owns=[])
+    await sup.delegate(t_research.id, researcher)
+    r_research = await sup.run(
+        t_research.id, researcher, {"rag_repo": rag_repo}
+    )
+
+    # 2. RAG verification — run tests + hallucination suite.
+    verifier = RAGVerifierAgent("rag-ver-1")
+    t_verify = sup.new_task("verify RAG remediation", "rag-verifier", file_owns=[])
+    await sup.delegate(t_verify.id, verifier)
+    r_verify = await sup.run(t_verify.id, verifier, {"rag_repo": rag_repo})
+
+    if verbose:
+        print(
+            f"  rag-research: {r_research.get('status')} confidence={r_research.get('confidence'):.2f}",
+            file=sys.stderr,
+        )
+        print(
+            f"  rag-verifier: {r_verify.get('status')} confidence={r_verify.get('confidence'):.2f}",
+            file=sys.stderr,
+        )
+
+    return {
+        "mode": "rag_integration",
+        "rag_repo": rag_repo,
+        "research": r_research,
+        "verification": r_verify,
+        "supervisor_report": sup.report(),
+        "all_passed": r_verify.get("all_passed", False),
+    }
 
 
 async def run_goal(
@@ -187,6 +243,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Maximum concurrent implementation-role agents (default: 2).",
     )
     parser.add_argument(
+        "--rag-repo",
+        default=None,
+        help="Path to a MOe RAG repo to research and verify (read-only).",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed progress to stderr.",
@@ -200,21 +261,44 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        report = asyncio.run(
-            run_goal(
-                goal=args.goal,
-                files=args.files,
-                max_active=args.max_active,
-                max_impl=args.max_impl,
-                verbose=args.verbose,
+        if args.rag_repo:
+            report = asyncio.run(
+                run_rag_integration(
+                    rag_repo=args.rag_repo,
+                    max_active=args.max_active,
+                    max_impl=args.max_impl,
+                    verbose=args.verbose,
+                )
             )
-        )
+        else:
+            report = asyncio.run(
+                run_goal(
+                    goal=args.goal,
+                    files=args.files,
+                    max_active=args.max_active,
+                    max_impl=args.max_impl,
+                    verbose=args.verbose,
+                )
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
     if args.json:
         print(json.dumps(report, indent=2))
+    elif report.get("mode") == "rag_integration":
+        print(f"RAG repo: {report['rag_repo']}")
+        print(f"Research: {report['research'].get('status')} "
+              f"(confidence={report['research'].get('confidence'):.2f})")
+        print(f"Verification: {report['verification'].get('status')} "
+              f"(confidence={report['verification'].get('confidence'):.2f})")
+        print(f"Research detail: {report['research'].get('detail')}")
+        print(f"Verification detail: {report['verification'].get('detail')}")
+        sr = report.get("supervisor_report", {})
+        print(
+            f"Active agents: {sr.get('active_agents', 0)} / {sr.get('max_active_agents', 0)}"
+        )
+        print(f"All passed: {report.get('all_passed')}")
     else:
         print(f"active_agents={report['active_agents']} / {report['max_active_agents']}")
         print(f"impl_busy={report['impl_busy']} / {report['max_impl_concurrent']}")
