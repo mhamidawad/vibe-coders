@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vibe-coders"
+version = "0.1.0"
+description = "Veteran-Grade Specialist Agents: a supervised multi-agent orchestration skeleton"
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "Proprietary"}
+authors = [{name = "MOe Management"}]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
