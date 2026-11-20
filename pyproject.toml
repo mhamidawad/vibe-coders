@@ -14,6 +14,9 @@ authors = [{name = "MOe Management"}]
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
+[project.scripts]
+vibe-coders = "vibe_coders.cli:main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
